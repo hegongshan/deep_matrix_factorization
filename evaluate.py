@@ -8,7 +8,7 @@ _test_negatives = None
 _data_matrix = None
 
 
-def evaluate_model(model, test_ratings, test_negatives, data_matrix, k=10):
+def evaluate_model(model, test_ratings, test_negatives, data_matrix, k):
     global _model
     global _test_ratings
     global _test_negatives
@@ -24,7 +24,7 @@ def evaluate_model(model, test_ratings, test_negatives, data_matrix, k=10):
         (hr, ndcg) = _evaluate_one_rating(i, k=k)
         hits.append(hr)
         ndcgs.append(ndcg)
-    return (hits, ndcgs)
+    return hits, ndcgs
 
 
 def _evaluate_one_rating(idx, k):
@@ -37,11 +37,10 @@ def _evaluate_one_rating(idx, k):
     items_input = []
     users_input = []
     for i in items:
-        items_input.append(_data_matrix[:, i - 1])
-        users_input.append(_data_matrix[user - 1])
-    # users = np.zeros(shape=(len(items), len(user))) + np.array(user)
+        items_input.append(_data_matrix[:, i])
+        users_input.append(_data_matrix[user])
     predictions = _model.predict([np.array(users_input), np.array(items_input)],
-                                 batch_size=64,
+                                 batch_size=100+1,
                                  verbose=0)
 
     map_item_score = {}
@@ -57,8 +56,9 @@ def _evaluate_one_rating(idx, k):
 
 
 def get_hit_ratio(ranklist, gt_item):
-    if gt_item in ranklist:
-        return 1
+    for item in ranklist:
+        if item == gt_item:
+            return 1
     return 0
 
 
