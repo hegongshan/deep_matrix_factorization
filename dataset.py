@@ -7,8 +7,8 @@ class DataSet(object):
     def __init__(self, path: str):
         filename = path + 'ratings.dat'
         self.data_list, self.num_users, self.num_items, self.max_rate = self.load_rating_file_as_list(filename)
-        self.data_matrix = self.get_data_matrix()
         self.train, self.test = self.get_train_test()
+        self.data_matrix = self.get_data_matrix()
         # self.train_data = self.get_train_instances()
         self.test_ratings, self.test_negatives = self.get_test_instances()
 
@@ -33,8 +33,7 @@ class DataSet(object):
 
     def get_data_matrix(self):
         mat = np.zeros((self.num_users, self.num_items))
-        for i in range(len(self.data_list)):
-            line = self.data_list[i]
+        for line in self.train:
             user, item, rating = line[0], line[1], line[2]
             mat[user - 1, item - 1] = rating
         return mat

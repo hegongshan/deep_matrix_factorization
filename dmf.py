@@ -1,12 +1,13 @@
 import logging
 import math
+import os
 from argparse import ArgumentParser
 from time import time
 
 import numpy as np
 from keras import backend as K
 from keras import optimizers
-from keras.layers import Input, Dense, Activation, Dot
+from keras.layers import Input, Dense, Lambda
 from keras.models import Model
 
 from dataset import DataSet
@@ -15,12 +16,23 @@ from evaluate import evaluate_model
 
 class DMF(object):
 
-    def __init__(self, lr, max_rate, mu):
-        self.lr = lr
-        self.max_rate = max_rate
-        self.mu = mu
+    def __init__(self,
+                 num_users,
+                 num_items,
+                 user_layers,
+                 item_layers,
+                 lr):
+        self.max_rate = dataset.max_rate
 
-    def init_normal(self, shape, dtype=None):
+        self.num_users = num_users
+        self.num_items = num_items
+        self.user_layers = user_layers
+        self.item_layers = item_layers
+
+        self.lr = lr
+
+    @staticmethod
+    def init_normal(shape, dtype=None):
         return K.random_normal(shape=shape, stddev=0.01, dtype=dtype)
 
     def normalized_crossentropy(self, y_true, y_pred):
@@ -28,14 +40,19 @@ class DMF(object):
         loss = reg_rate * K.log(y_pred) + (1 - reg_rate) * K.log(1 - y_pred)
         return -K.sum(loss)
 
-    def get_model(self, num_users, num_items, user_layers, item_layers):
-        user_input = Input(shape=(num_items,), dtype='float32', name='user_input')
-        item_input = Input(shape=(num_users,), dtype='float32', name='item_input')
+    def cosine_similarity_relu(self, inputs):
+        x, y = inputs[0], inputs[1]
+        vec = K.batch_dot(x, y) / (K.sqrt(K.batch_dot(x, x) * K.batch_dot(y, y)))
+        return K.maximum(vec, 1.0e-6)
+
+    def get_model(self):
+        user_input = Input(shape=(self.num_items,), dtype='float32', name='user_input')
+        item_input = Input(shape=(self.num_users,), dtype='float32', name='item_input')
 
         user_vector = None
         item_vector = None
-        for i in range(len(user_layers)):
-            layer = Dense(user_layers[i],
+        for i in range(len(self.user_layers)):
+            layer = Dense(self.user_layers[i],
                           activation='relu',
                           kernel_initializer=self.init_normal,
                           bias_initializer=self.init_normal,
@@ -45,8 +62,8 @@ class DMF(object):
             else:
                 user_vector = layer(user_vector)
 
-        for i in range(len(item_layers)):
-            layer = Dense(item_layers[i],
+        for i in range(len(self.item_layers)):
+            layer = Dense(self.item_layers[i],
                           activation='relu',
                           kernel_initializer=self.init_normal,
                           bias_initializer=self.init_normal,
@@ -57,9 +74,10 @@ class DMF(object):
                 item_vector = layer(item_vector)
 
         # cosine similarity
-        y = Dot(axes=1, normalize=True)([user_vector, item_vector])
-        y_predict = Activation(activation=lambda x: K.maximum(x, self.mu))(y)
+        # y = Dot(axes=1, normalize=True)([user_vector, item_vector])
+        # y_predict = Activation(activation=lambda x: K.maximum(x, self.mu))(y)
 
+        y_predict = Lambda(function=self.cosine_similarity_relu, name='predict')([user_vector, item_vector])
         model = Model(inputs=[user_input, item_input], outputs=y_predict)
         model.compile(optimizer=optimizers.Adam(lr=self.lr), loss=self.normalized_crossentropy)
         return model
@@ -69,12 +87,13 @@ def generate_user_item_input(users, items, ratings, data_matrix, batch_size):
     batch = math.ceil(len(items) / batch_size)
     for batch_id in range(batch):
         user_input, item_input = [], []
-        for idx in items[batch_id * batch_size:(batch_id + 1) * batch_size]:
+        max_idx = min(len(items), (batch_id + 1) * batch_size)
+        for idx in range(batch_id * batch_size, max_idx):
             u = users[idx]
             i = items[idx]
             item_input.append(data_matrix[:, i])
             user_input.append(data_matrix[u])
-        target_ratings = ratings[batch_id * batch_size:(batch_id + 1) * batch_size]
+        target_ratings = ratings[batch_id * batch_size:max_idx]
         yield [np.array(user_input), np.array(item_input)], target_ratings
 
 
@@ -96,11 +115,12 @@ def parse_args():
                         help='Number of negative instances to pair with a positive instance.')
     parser.add_argument('--lr', type=float, default=0.0001,
                         help='Learning rate.')
+    parser.add_argument('--topN', type=int, default=10,
+                        help='Size of recommendation list.')
     return parser.parse_args()
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO, filename='dmf.log')
 
     args = parse_args()
     path = args.path
@@ -108,27 +128,38 @@ if __name__ == '__main__':
     dmf_user_layers = eval(args.user_layers)
     dmf_item_layers = eval(args.item_layers)
     batch_size = args.batch_size
-    dataset = args.dataset
+    data_set = args.dataset
     lr = args.lr
+    topN = args.topN
     num_train_negatives = args.num_neg
 
-    top_k = 10
-    mu = 1.0e-6
-    model_out_file = 'model/%s_u%s_i%s_%d_%d.h5' % (dataset, str(dmf_user_layers),
+    print(args)
+
+    logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
+                        level=logging.INFO,
+                        filename='dmf_%s.log' % data_set)
+
+    if not os.path.exists('model'):
+        os.mkdir('model')
+    model_out_file = 'model/%s_u%s_i%s_%d_%d.h5' % (data_set, str(dmf_user_layers),
                                                     str(dmf_item_layers), batch_size, time())
 
     # load data set
-    dataset = DataSet('%s/%s/' % (path, dataset))
+    dataset = DataSet('%s/%s/' % (path, data_set))
 
     # initialize DMF
-    dmf = DMF(lr=lr, max_rate=dataset.max_rate, mu=mu)
-    model = dmf.get_model(num_users=dataset.num_users, num_items=dataset.num_items,
-                          user_layers=dmf_user_layers, item_layers=dmf_item_layers)
+    dmf = DMF(num_users=dataset.num_users,
+              num_items=dataset.num_items,
+              user_layers=dmf_user_layers,
+              item_layers=dmf_item_layers,
+              lr=lr)
+    model = dmf.get_model()
     model.summary()
 
-    (hits, ndcgs) = evaluate_model(model, dataset.test_ratings, dataset.test_negatives, dataset.data_matrix, top_k)
+    (hits, ndcgs) = evaluate_model(model, dataset.test_ratings, dataset.test_negatives, dataset.data_matrix, topN)
     hr, ndcg, loss = np.array(hits).mean(), np.array(ndcgs).mean(), -1
     print('Init: HR = %.4f, NDCG = %.4f' % (hr, ndcg))
+    logging.info('Init: HR = %.4f, NDCG = %.4f' % (hr, ndcg))
     best_hr, best_ndcg = hr, ndcg
     best_iter = 0
 
@@ -159,12 +190,11 @@ if __name__ == '__main__':
 
         history = model.fit_generator(generate_user_item_input(users, items, ratings, dataset.data_matrix, batch_size),
                                       steps_per_epoch=math.ceil(len(users) / batch_size),
-                                      epochs=1,
-                                      shuffle=True)
+                                      epochs=1)
 
         end = time()
         print('Epoch %d Finished. [%.1f s]' % (epoch + 1, end - start))
-        (hits, ndcgs) = evaluate_model(model, dataset.test_ratings, dataset.test_negatives, dataset.data_matrix, top_k)
+        (hits, ndcgs) = evaluate_model(model, dataset.test_ratings, dataset.test_negatives, dataset.data_matrix, topN)
         hr, ndcg, loss = np.array(hits).mean(), np.array(ndcgs).mean(), history.history['loss'][0]
 
         print('HR = %.4f, NDCG = %.4f, loss = %.4f [%.1f s]'

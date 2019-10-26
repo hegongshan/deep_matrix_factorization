@@ -36,34 +36,32 @@ def _evaluate_one_rating(idx, k):
 
     items_input = []
     users_input = []
-    for i in items:
-        items_input.append(_data_matrix[:, i])
+    for item in items:
+        items_input.append(_data_matrix[:, item])
         users_input.append(_data_matrix[user])
     predictions = _model.predict([np.array(users_input), np.array(items_input)],
-                                 batch_size=100+1,
+                                 batch_size=100 + 1,
                                  verbose=0)
 
     map_item_score = {}
-    for i in range(len(items)):
-        item = items[i]
-        map_item_score[item] = predictions[i]
+    for idx, item in enumerate(items):
+        map_item_score[item] = predictions[idx]
 
     items.pop()
-    ranklist = heapq.nlargest(k, map_item_score, key=map_item_score.get)
-    hr = get_hit_ratio(ranklist, gt_item)
-    ndcg = get_ndcg(ranklist, gt_item)
-    return (hr, ndcg)
+    rank_list = heapq.nlargest(k, map_item_score, key=map_item_score.get)
+    hr = get_hit_ratio(rank_list, gt_item)
+    ndcg = get_ndcg(rank_list, gt_item)
+    return hr, ndcg
 
 
-def get_hit_ratio(ranklist, gt_item):
-    for item in ranklist:
-        if item == gt_item:
-            return 1
+def get_hit_ratio(rank_list, gt_item):
+    if gt_item in rank_list:
+        return 1
     return 0
 
 
-def get_ndcg(ranklist, gt_item):
-    for i in range(len(ranklist)):
-        if ranklist[i] == gt_item:
-            return math.log(2) / math.log(i + 2)
+def get_ndcg(rank_list, gt_item):
+    for idx, item in enumerate(rank_list):
+        if item == gt_item:
+            return math.log(2) / math.log(idx + 2)
     return 0
