@@ -4,6 +4,8 @@ A Non-official Implementation of "Deep Matrix Factorization Models for Recommend
 
 See paper: http://www.ijcai.org/proceedings/2017/0447.pdf
 
+If you use the codes for your paper as baseline implementation, please cite the link: https://github.com/hegongshan/deep_matrix_factorization 
+
 ### Environment Settings
 
 We use Keras with Tensorflow as the backend.
