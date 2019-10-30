@@ -14,6 +14,29 @@ from dataset import DataSet
 from evaluate import evaluate_model
 
 
+def parse_args():
+    parser = ArgumentParser(description='Run DMF.')
+    parser.add_argument('--path', nargs='?', default='data',
+                        help='Input data path.')
+    parser.add_argument('--dataset', nargs='?', default='ml-1m',
+                        help='Choose a dataset, either ml-1m or ml-100k.')
+    parser.add_argument('--epochs', type=int, default=100,
+                        help='Number of epochs.')
+    parser.add_argument('--batch_size', type=int, default=256,
+                        help='Batch size.')
+    parser.add_argument('--user_layers', nargs='?', default='[512,64]',
+                        help="Size of each layer for user.")
+    parser.add_argument('--item_layers', nargs='?', default='[1024,64]',
+                        help="Size of each layer for item.")
+    parser.add_argument('--num_neg', type=int, default=7,
+                        help='Number of negative instances to pair with a positive instance.')
+    parser.add_argument('--lr', type=float, default=0.0001,
+                        help='Learning rate.')
+    parser.add_argument('--topN', type=int, default=10,
+                        help='Size of recommendation list.')
+    return parser.parse_args()
+
+
 class DMF(object):
 
     def __init__(self,
@@ -97,29 +120,6 @@ def generate_user_item_input(users, items, ratings, data_matrix, batch_size):
         yield [np.array(user_input), np.array(item_input)], target_ratings
 
 
-def parse_args():
-    parser = ArgumentParser(description='Run DMF.')
-    parser.add_argument('--path', nargs='?', default='data',
-                        help='Input data path.')
-    parser.add_argument('--dataset', nargs='?', default='ml-1m',
-                        help='Choose a dataset.')
-    parser.add_argument('--epochs', type=int, default=100,
-                        help='Number of epochs.')
-    parser.add_argument('--batch_size', type=int, default=256,
-                        help='Batch size.')
-    parser.add_argument('--user_layers', nargs='?', default='[512,64]',
-                        help="Size of each layer for user.")
-    parser.add_argument('--item_layers', nargs='?', default='[1024,64]',
-                        help="Size of each layer for item.")
-    parser.add_argument('--num_neg', type=int, default=7,
-                        help='Number of negative instances to pair with a positive instance.')
-    parser.add_argument('--lr', type=float, default=0.0001,
-                        help='Learning rate.')
-    parser.add_argument('--topN', type=int, default=10,
-                        help='Size of recommendation list.')
-    return parser.parse_args()
-
-
 if __name__ == '__main__':
 
     args = parse_args()
@@ -135,9 +135,14 @@ if __name__ == '__main__':
 
     print(args)
 
-    logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',
-                        level=logging.INFO,
-                        filename='dmf_%s.log' % data_set)
+    root = logging.getLogger()
+    if root.handlers:
+        root.handlers = []
+    logging.basicConfig(format='%(asctime)s : %(message)s',
+                        filename='dmf_%s.log' % data_set,
+                        level=logging.INFO)
+
+    logging.info('start....')
 
     if not os.path.exists('model'):
         os.mkdir('model')
@@ -145,7 +150,7 @@ if __name__ == '__main__':
                                                     str(dmf_item_layers), batch_size, time())
 
     # load data set
-    dataset = DataSet('%s/%s/' % (path, data_set))
+    dataset = DataSet(path, data_set)
 
     # initialize DMF
     dmf = DMF(num_users=dataset.num_users,

@@ -1,25 +1,38 @@
 import scipy.sparse as sp
 import numpy as np
+import os
 
 
 class DataSet(object):
 
-    def __init__(self, path: str):
-        filename = path + 'ratings.dat'
-        self.data_list, self.num_users, self.num_items, self.max_rate = self.load_rating_file_as_list(filename)
+    def __init__(self, path, data_set='ml-100k'):
+        path_sep = os.path.sep
+        filename = path + path_sep + data_set + path_sep
+        if data_set == 'ml-100k':
+            filename += 'u.data'
+            data_separator = '\t'
+        elif data_set == 'ml-1m':
+            filename += 'ratings.dat'
+            data_separator = '::'
+        else:
+            raise FileNotFoundError('Directory %s not found!' % path + path_sep + data_set)
+
+        self.data_list, self.num_users, self.num_items, self.max_rate = \
+            self.load_rating_file_as_list(filename, separator=data_separator)
         self.train, self.test = self.get_train_test()
         self.data_matrix = self.get_data_matrix()
         # self.train_data = self.get_train_instances()
         self.test_ratings, self.test_negatives = self.get_test_instances()
 
-    def load_rating_file_as_list(self, filename: str):
+    @staticmethod
+    def load_rating_file_as_list(filename, separator='\t'):
         print('loading rating file: %s...' % filename)
         data = []
         num_users, num_items, max_rate = 0, 0, 0
         with open(filename, 'r') as file:
             for line in file:
                 if line is not None and line != '':
-                    arr = line.strip().split('::')
+                    arr = line.strip().split(separator)
                     u, i, rating, timestamp = int(arr[0]), int(arr[1]), float(arr[2]), int(arr[3])
                     data.append([u, i, rating, timestamp])
                     if u > num_users:
@@ -35,19 +48,8 @@ class DataSet(object):
         mat = np.zeros((self.num_users, self.num_items))
         for line in self.train:
             user, item, rating = line[0], line[1], line[2]
-            mat[user - 1, item - 1] = rating
+            mat[user, item] = rating
         return mat
-
-    # def load_rating_file_as_matrix(self, filename: str) -> sp.dok_matrix:
-    #     mat = sp.dok_matrix((self.num_users, self.num_items), dtype=np.float32)
-    #     with open(filename, 'r') as file:
-    #         for line in file:
-    #             if line is not None and line != '':
-    #                 arr = line.split('::')
-    #                 u, i, rating = int(arr[0]), int(arr[1]), float(arr[2])
-    #                 if rating > 0:
-    #                     mat[u - 1, i - 1] = rating
-    #     return mat
 
     def get_train_test(self):
         print('splitting train and test data...')
