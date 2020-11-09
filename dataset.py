@@ -91,7 +91,7 @@ class DataSet(object):
 
                         item_list.append(j)
                         break
-        return user_input, item_input, ratings
+        return user_input, item_input, np.array(ratings) / self.max_rate
 
     def get_test_instances(self, num_negatives=100):
         print('getting test instances...')
