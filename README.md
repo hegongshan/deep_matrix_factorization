@@ -32,4 +32,4 @@ If you are interested in DMF, you can try to set *lr* to 0.0001 and run 100 epoc
 
 And then, HR@10 and NDCG@10 should be closer to the results in this paper.
 
-Last Update: November 9, 2020 
+Last Update: November 10, 2020 

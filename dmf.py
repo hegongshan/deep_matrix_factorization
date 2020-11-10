@@ -6,7 +6,7 @@ from time import time
 import numpy as np
 from keras import backend as K
 from keras import optimizers
-from keras.layers import Input, Dense, Lambda
+from keras.layers import Input, Dense, Lambda, Flatten
 from keras.models import Model
 
 from dataset import DataSet
@@ -61,16 +61,20 @@ class DMF(object):
 
     def cosine_similarity_relu(self, inputs):
         x, y = inputs[0], inputs[1]
-        # vec = K.batch_dot(x, y) / (K.sqrt(K.batch_dot(x, x) * K.batch_dot(y, y)))
-        result = K.sum(x * y, axis=1) / K.sqrt(K.sum(x * x, axis=1) * K.sum(y * y, axis=1))
-        return K.maximum(result, 1.0e-6)
+        numerator = K.sum(x * y, axis=1, keepdims=True)
+        denominator = K.sqrt(K.sum(x * x, axis=1, keepdims=True) * K.sum(y * y, axis=1, keepdims=True))
+        cosine_similarity = numerator / denominator
+        return K.maximum(cosine_similarity, 1.0e-6)
 
     def get_model(self):
-        user_input = Input(shape=(1,), dtype='float32', name='user_input')
-        item_input = Input(shape=(1,), dtype='float32', name='item_input')
+        user_input = Input(shape=(1,), dtype='int32', name='user_input')
+        item_input = Input(shape=(1,), dtype='int32', name='item_input')
 
-        user_rating_vector = Lambda(lambda x: K.gather(self.user_rating, x))(user_input)
-        item_rating_vector = Lambda(lambda x: K.gather(self.item_rating, x))(item_input)
+        user_rating_input = Lambda(lambda x: K.gather(self.user_rating, x))(user_input)
+        user_rating_vector = Flatten()(user_rating_input)
+
+        item_rating_input = Lambda(lambda x: K.gather(self.item_rating, x))(item_input)
+        item_rating_vector = Flatten()(item_rating_input)
 
         user_vector = None
         item_vector = None
