@@ -59,7 +59,8 @@ class DMF(object):
     def init_normal(shape, dtype=None):
         return K.random_normal(shape=shape, stddev=0.01, dtype=dtype)
 
-    def cosine_similarity_relu(self, inputs):
+    @staticmethod
+    def cosine_similarity_relu(inputs):
         x, y = inputs[0], inputs[1]
         numerator = K.sum(x * y, axis=1, keepdims=True)
         denominator = K.sqrt(K.sum(x * x, axis=1, keepdims=True) * K.sum(y * y, axis=1, keepdims=True))
