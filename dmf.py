@@ -60,12 +60,12 @@ class DMF(object):
         return K.random_normal(shape=shape, stddev=0.01, dtype=dtype)
 
     @staticmethod
-    def cosine_similarity_relu(inputs):
+    def cosine_similarity(inputs, epsilon=1.0e-6, delta=1e-12):
         x, y = inputs[0], inputs[1]
         numerator = K.sum(x * y, axis=1, keepdims=True)
         denominator = K.sqrt(K.sum(x * x, axis=1, keepdims=True) * K.sum(y * y, axis=1, keepdims=True))
-        cosine_similarity = numerator / denominator
-        return K.maximum(cosine_similarity, 1.0e-6)
+        cosine_similarity = numerator / K.maximum(denominator, delta)
+        return K.maximum(cosine_similarity, epsilon)
 
     def get_model(self):
         user_input = Input(shape=(1,), dtype='int32', name='user_input')
@@ -101,7 +101,7 @@ class DMF(object):
             else:
                 item_vector = layer(item_vector)
 
-        y_predict = Lambda(function=self.cosine_similarity_relu, name='predict')([user_vector, item_vector])
+        y_predict = Lambda(function=self.cosine_similarity, name='predict')([user_vector, item_vector])
         model = Model(inputs=[user_input, item_input],
                       outputs=y_predict)
         model.compile(optimizer=optimizers.Adam(lr=self.lr),

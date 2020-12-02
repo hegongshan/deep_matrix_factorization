@@ -15,7 +15,7 @@ class DataSet(object):
             filename += 'ratings.dat'
             data_separator = '::'
         else:
-            raise FileNotFoundError('Directory %s not found!' % path + path_sep + data_set)
+            raise FileNotFoundError('Directory %s not found!' % os.path.join(path, data_set))
 
         self.data_list, self.num_users, self.num_items, self.max_rate = \
             self.load_rating_file_as_list(filename, separator=data_separator)
